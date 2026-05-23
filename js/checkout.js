@@ -28,7 +28,7 @@ const basePrice = pkg.price;
 document.getElementById('checkoutTier').textContent = pkg.name;
 document.getElementById('checkoutSubPrice').textContent = `${sym}${basePrice.toLocaleString()}`;
 document.getElementById('checkoutTotal').textContent = `${sym}${basePrice.toLocaleString()}`;
-document.getElementById('checkoutPayBtn').textContent = `Pay ${sym}${basePrice.toLocaleString()}`;
+document.getElementById('checkoutPayBtn').textContent = `Continue on WhatsApp · ${sym}${basePrice.toLocaleString()}`;
 document.title = `Checkout — ${pkg.name}`;
 
 function getTotal() {
@@ -64,104 +64,43 @@ function copyAccount(el) {
   });
 }
 
-// ===== Modals =====
-function openModal(id) {
-  document.getElementById(id).classList.add('active');
-  document.body.style.overflow = 'hidden';
-}
-function closeModal(id) {
-  document.getElementById(id).classList.remove('active');
-  document.body.style.overflow = '';
-}
+// ===== WhatsApp Checkout =====
+const WHATSAPP_NUMBER = '15868631749';
 
-document.querySelectorAll('.modal-bg').forEach(bg => {
-  bg.addEventListener('click', e => {
-    if (e.target === bg) { bg.classList.remove('active'); document.body.style.overflow = ''; }
-  });
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
-    document.body.style.overflow = '';
-  }
-});
-
-// ===== Method Picker =====
-function toggleMethodPicker() {
-  document.getElementById('methodPicker').classList.toggle('hidden');
-}
-
-// ===== Transfer Modal =====
-let btnTimeout;
-let transferAttempts = 0;
-let timerInterval;
-
-function openTransferModal() {
-  const name = document.getElementById('custName').value.trim();
-  const phone = document.getElementById('custPhone').value.trim();
+function finalizeOnWhatsApp() {
+  const name    = document.getElementById('custName').value.trim();
+  const phone   = document.getElementById('custPhone').value.trim();
   const address = document.getElementById('custAddress').value.trim();
+  const city    = document.getElementById('custCity').value.trim();
+  const state   = document.getElementById('custState').value.trim();
 
   if (!name || !phone || !address) {
     alert('Please fill in your full name, phone number and delivery address before continuing.');
     return;
   }
 
+  localStorage.setItem('checkoutCustomer', JSON.stringify({
+    name, phone, address, city, state
+  }));
+
   const total = getTotal();
-  document.getElementById('transferAmount').textContent = `${sym}${total.toLocaleString()}`;
-  document.getElementById('methodPicker').classList.add('hidden');
+  const lines = [
+    'Hello Greenlife! I would like to place an order:',
+    '',
+    `*Product:* ${pkg.name}`,
+    `*Total:* ${sym}${total.toLocaleString()}`,
+    '',
+    '*Delivery Information*',
+    `Name: ${name}`,
+    `Phone: ${phone}`,
+    `Address: ${address}`
+  ];
+  if (city)  lines.push(`City: ${city}`);
+  if (state) lines.push(`State: ${state}`);
+  lines.push('', 'Please confirm my order. Thank you!');
 
-  document.getElementById('confirmTransferBtn').classList.add('hidden');
-  document.getElementById('verifyBar').classList.remove('hidden');
-  document.getElementById('paymentNotFound').classList.add('hidden');
-  transferAttempts = 0;
+  trackPurchase();
 
-  startTimer();
-  openModal('transferModal');
-
-  clearTimeout(btnTimeout);
-  btnTimeout = setTimeout(() => {
-    document.getElementById('verifyBar').classList.add('hidden');
-    document.getElementById('confirmTransferBtn').classList.remove('hidden');
-  }, 60000);
-}
-
-function startTimer() {
-  clearInterval(timerInterval);
-  let seconds = 30 * 60;
-  const el = document.getElementById('transferTimer');
-  timerInterval = setInterval(() => {
-    seconds--;
-    if (seconds <= 0) { clearInterval(timerInterval); el.textContent = 'Expired'; return; }
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-  }, 1000);
-}
-
-function confirmTransfer() {
-  const btn = document.getElementById('confirmTransferBtn');
-  const orig = btn.textContent;
-  btn.innerHTML = '<span class="spinner"></span> Verifying...';
-  btn.disabled = true;
-
-  transferAttempts++;
-
-  setTimeout(() => {
-    btn.textContent = orig;
-    btn.disabled = false;
-
-    if (transferAttempts < 2) {
-      document.getElementById('paymentNotFound').classList.remove('hidden');
-    } else {
-      document.getElementById('paymentNotFound').classList.add('hidden');
-      clearInterval(timerInterval);
-      clearTimeout(btnTimeout);
-      closeModal('transferModal');
-      trackPurchase();
-      document.getElementById('successMessage').textContent =
-        `Your ${pkg.name} order has been placed! We'll contact you shortly to confirm delivery.`;
-      openModal('successModal');
-    }
-  }, 2000);
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`;
+  window.location.href = url;
 }
